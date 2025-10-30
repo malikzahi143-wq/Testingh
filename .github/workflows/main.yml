@@ -1,40 +1,56 @@
-name: RDP
-
+name: 6-Hour Free RDP
 
 on:
-
   workflow_dispatch:
 
-
 jobs:
-
-  secure-rdp:
-
+  rdp:
     runs-on: windows-latest
-
-    timeout-minutes: 3600
-
+    timeout-minutes: 360 # 6 hours
 
     steps:
+      - name: Set up RDP (Enable Remote Desktop)
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-      - name: Configure Core RDP Settings
-  shell: pwsh
-  run: |
-    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+      - name: Create RDP User
+        id: rdpuser
+        shell: pwsh
+        run: |
+          $username = "rdpuser$([System.Guid]::NewGuid().ToString('N').Substring(0, 6))"
+          $password = [System.Web.Security.Membership]::GeneratePassword(16,3)
+          net user $username $password /add
+          net localgroup "Administrators" $username /add
+          echo "::set-output name=username::$username"
+          echo "::set-output name=password::$password"
 
-          # Enable Remote Desktop and disable Network Level Authentication (if needed)
+      - name: Install Tailscale
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile "tailscale-setup.exe"
+          Start-Process .\tailscale-setup.exe -Wait
 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+      - name: Authenticate Tailscale
+        shell: pwsh
+        run: |
+          tailscale up --authkey "AUTH KEY" --hostname github-rdp
 
-                             -Name "fDenyTSConnections" -Value 0 -Force
+      - name: Show Connection Info
+        shell: pwsh
+        run: |
+          $ts_ip = (tailscale ip -4)
+          Write-Host "RDP Username: ${{ steps.rdpuser.outputs.username }}"
+          Write-Host "RDP Password: ${{ steps.rdpuser.outputs.password }}"
+          Write-Host "Tailscale IP: $ts_ip"
+          Write-Host "You can connect using Remote Desktop to the above IP with the given username and password."
+          Write-Host "This session will last for 6 hours."
 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-
-                             -Name "UserAuthentication" -Value 0 -Force
-
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-
-                             -Name "SecurityLayer" -Value 0 -Force
+      - name: Keep runner alive for 6 hours
+        shell: pwsh
+        run: |
+          Start-Sleep -Seconds 21600                             -Name "SecurityLayer" -Value 0 -Force
 
 
           # Remove any existing rule with the same name to avoid duplication
