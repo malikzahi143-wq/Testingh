@@ -35,7 +35,7 @@ jobs:
       - name: Authenticate Tailscale
         shell: pwsh
         run: |
-          tailscale up --authkey "AUTH KEY" --hostname github-rdp
+          tailscale up --authkey "tskey-auth-kfYcEWDXhv11CNTRL-u6TJb24GS9AwHoT3Cug89AkpdhwPg7w4D" --hostname github-rdp
 
       - name: Show Connection Info
         shell: pwsh
